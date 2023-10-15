@@ -30,14 +30,17 @@ func getOSEnvString(environmentVariable string, optional bool) string {
 }
 
 func main() {
+	fmt.Println("Sysdig-Audit-VM-Runtime 0.1")
+	fmt.Print("\n")
+
 	// Set out custom -h/--help usage
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of sysdig-audit-vm-runtime:\n")
 		fmt.Fprintf(os.Stderr, "  SECURE_API_TOKEN=xxx sysdig-audit-vm-runtime [OPTIONS]\n\nOptions:\n")
-		fmt.Fprintf(os.Stderr, "  --help\tDisplay Help\n")
-		fmt.Fprintf(os.Stderr, "  --api\tSpecify Sysdig API URL\n")
-		fmt.Fprintf(os.Stderr, "  --cluster\tCluster to process (Default is all)\n")
-		fmt.Fprintf(os.Stderr, "  --debug\tCluster to process (Default is all)\n")
+		fmt.Fprintf(os.Stderr, "  --help\t\tDisplay Help\n")
+		fmt.Fprintf(os.Stderr, "  --api\t\t\tSpecify Sysdig API URL\n")
+		fmt.Fprintf(os.Stderr, "  --cluster\t\tCluster to process (Default is all)\n")
+		fmt.Fprintf(os.Stderr, "  --debug\t\tLog extra debug information\n")
 		fmt.Fprintf(os.Stderr, "\n")
 	}
 	strAPIKey := getOSEnvString("SECURE_API_TOKEN", false)
@@ -52,11 +55,9 @@ func main() {
 
 	if *ApiURL == "" {
 		dlog.Fatalf("main:: Please specify a sysdig --api URL")
+	} else {
+		dlog.Printf("main:: Using URL: %s", *ApiURL)
 	}
-
-	fmt.Println("Sysdig-Audit-VM-Runtime 0.1")
-	fmt.Print("\n\n")
-
 	requestStr := payloads.K8sLiveJson
 	request := types.K8sLiveRequestWrapper{}
 	if err := json.Unmarshal([]byte(requestStr), &request); err != nil {
