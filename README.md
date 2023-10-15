@@ -12,9 +12,10 @@ Usage of sysdig-audit-vm-runtime:
   SECURE_API_TOKEN=xxx sysdig-audit-vm-runtime [OPTIONS]
 
 Options:
-  -h/--help	Display Help
-  -a/--api	Specify Sysdig API URL
-  -c/--cluster	Cluster to process (Default is all)
+  --help                Display Help
+  --api                 Specify Sysdig API URL
+  --cluster             Cluster to process (Default is all)
+  --debug               Log extra debug information
 ```
 
 ## Example Output ##
