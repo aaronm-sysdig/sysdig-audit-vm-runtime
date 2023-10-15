@@ -43,6 +43,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  --cluster\t\tCluster to process (Default is all)\n")
 		fmt.Fprintf(os.Stderr, "  --debug\t\tLog extra debug information\n")
 		fmt.Fprintf(os.Stderr, "  --ignorejobs\t\tIgnore Jobs or CronJobs\n")
+		fmt.Fprintf(os.Stderr, "  --last\t\tLast xx minutes of data to compare (default: 60 minutes)\n")
 		fmt.Fprintf(os.Stderr, "\n")
 	}
 	strAPIKey := getOSEnvString("SECURE_API_TOKEN", false)
@@ -52,6 +53,7 @@ func main() {
 	var boolIgnoreJobs bool
 	flag.BoolVar(&boolIgnoreJobs, "ignorejobs", false, "Ignore Jobs / Cronjobs")
 	flag.BoolVar(&DebugLog.Debug, "debug", false, "Enable debug logging")
+	intLast := flag.Int("last", 60, "Last xx minutes of data to compare (default: 60 minutes)")
 	clusterName := flag.String("cluster", "", "Name of the Kubernetes cluster")
 	ApiURL := flag.String("api", "", "Specify Sysdig API URL")
 	flag.Parse()
@@ -77,11 +79,17 @@ func main() {
 		Add(-time.Nanosecond * time.Duration(dtNow.Nanosecond()))
 
 	dtToMicro := dtNow.UnixNano() / 1000
-	dtFromMicro := dtToMicro - 86400000000
+	dtFromMicro := dtToMicro - (int64(*intLast) * 60000000)
+
+	// Convert epoch time to time.Time
+	dtTo := time.Unix(dtToMicro/1e6, 0)
+	dtFrom := time.Unix(dtFromMicro/1e6, 0)
 
 	request.Requests[0].Time["to"] = dtToMicro
 	dlog.Printf("main:: From epoch: %d", dtFromMicro)
 	dlog.Printf("main:: To epoch: %d", dtToMicro)
+	dlog.Printf("main:: From Date/Time: %s", dtFrom)
+	dlog.Printf("main:: To Date/Time: %s", dtTo)
 
 	request.Requests[0].Time["from"] = dtFromMicro
 	if *clusterName != "" {
@@ -114,7 +122,7 @@ func main() {
 	arrK8sLiveWorkloads := make(map[string]types.WorkloadStruct)
 	arrsortedK8sLiveWorkloads := []string{}
 
-	for index, item := range jsonK8sLiveResponse.Responses[0].Data {
+	for _, item := range jsonK8sLiveResponse.Responses[0].Data {
 		entry := types.WorkloadStruct{
 			ClusterName:   item["k2"],
 			NamespaceName: item["k1"],
@@ -123,7 +131,7 @@ func main() {
 			CronJobName:   item["k4"],
 		}
 		if (entry.JobName != "" || entry.CronJobName != "") && boolIgnoreJobs {
-			dlog.Printf("Index: %d, Ignoring 'Job/Cronjob' Workload %s (JobName:%s, CronJobName:%s)", index, entry.WorkloadName, entry.JobName, entry.CronJobName)
+			dlog.Printf("Ignoring 'Job/Cronjob' Workload %s (JobName:%s, CronJobName:%s)", entry.WorkloadName, entry.JobName, entry.CronJobName)
 		} else {
 			key := fmt.Sprintf("%s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName)
 			arrK8sLiveWorkloads[key] = entry
