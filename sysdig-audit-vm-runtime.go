@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	DebugLog "sysdig-audit-vm-runtime/debuglog"
 	"sysdig-audit-vm-runtime/payloads"
 	"sysdig-audit-vm-runtime/sysdighttp"
@@ -30,7 +31,7 @@ func getOSEnvString(environmentVariable string, optional bool) string {
 }
 
 func main() {
-	fmt.Println("Sysdig-Audit-VM-Runtime 0.1")
+	fmt.Println("Sysdig-Audit-VM-Runtime 0.2")
 	fmt.Print("\n")
 
 	// Set out custom -h/--help usage
@@ -41,13 +42,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  --api\t\t\tSpecify Sysdig API URL\n")
 		fmt.Fprintf(os.Stderr, "  --cluster\t\tCluster to process (Default is all)\n")
 		fmt.Fprintf(os.Stderr, "  --debug\t\tLog extra debug information\n")
+		fmt.Fprintf(os.Stderr, "  --ignorejobs\t\tIgnore Jobs or CronJobs\n")
 		fmt.Fprintf(os.Stderr, "\n")
 	}
 	strAPIKey := getOSEnvString("SECURE_API_TOKEN", false)
 	if strAPIKey == "" {
 		dlog.Fatalf("main:: Please set SECURE_API_TOKEN variable.  Exiting...")
 	}
-
+	var boolIgnoreJobs bool
+	flag.BoolVar(&boolIgnoreJobs, "ignorejobs", false, "Ignore Jobs / Cronjobs")
 	flag.BoolVar(&DebugLog.Debug, "debug", false, "Enable debug logging")
 	clusterName := flag.String("cluster", "", "Name of the Kubernetes cluster")
 	ApiURL := flag.String("api", "", "Specify Sysdig API URL")
@@ -109,15 +112,28 @@ func main() {
 	//build the map of K8s live data to use later
 	intK8sCount := 0
 	arrK8sLiveWorkloads := make(map[string]types.WorkloadStruct)
+	arrsortedK8sLiveWorkloads := []string{}
+
 	for index, item := range jsonK8sLiveResponse.Responses[0].Data {
 		entry := types.WorkloadStruct{
 			ClusterName:   item["k2"],
 			NamespaceName: item["k1"],
 			WorkloadName:  item["k0"],
+			JobName:       item["k3"],
+			CronJobName:   item["k4"],
 		}
-		key := fmt.Sprintf("%s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName)
-		arrK8sLiveWorkloads[key] = entry
-		dlog.Printf("Index: %d, arrK8sLiveWorkloads Workload: %s / %s / %s", index, item["k2"], item["k1"], item["k0"])
+		if (entry.JobName != "" || entry.CronJobName != "") && boolIgnoreJobs {
+			dlog.Printf("Index: %d, Ignoring 'Job/Cronjob' Workload %s (JobName:%s, CronJobName:%s)", index, entry.WorkloadName, entry.JobName, entry.CronJobName)
+		} else {
+			key := fmt.Sprintf("%s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName)
+			arrK8sLiveWorkloads[key] = entry
+			arrsortedK8sLiveWorkloads = append(arrsortedK8sLiveWorkloads, key)
+			//dlog.Printf("Index: %d, arrK8sLiveWorkloads Workload: %s / %s / %s", index, item["k2"], item["k1"], item["k0"])
+		}
+	}
+	sort.Strings(arrsortedK8sLiveWorkloads)
+	for index, item := range arrsortedK8sLiveWorkloads {
+		dlog.Printf("Index: %d, arrK8sLiveWorkloads Workload: %s", index, item)
 		intK8sCount += 1
 	}
 
@@ -127,8 +143,11 @@ func main() {
 	configScanning.Headers = map[string]string{
 		"Authorization": "bearer " + strAPIKey,
 	}
-	configScanning.Params = map[string]interface{}{
-		"limit": 9999,
+	configScanning.Params = map[string]interface{}{}
+	configScanning.Params["limit"] = 9999
+	if *clusterName != "" {
+		configScanning.Params["filter"] = fmt.Sprintf("kubernetes.cluster.name = \"%s\"", *clusterName)
+		dlog.Printf("main:: filtering on kubernetes.cluster.name = \"%s\"", *clusterName)
 	}
 
 	objScanningResponse, err := sysdighttp.SysdigRequest(configScanning)
@@ -145,7 +164,9 @@ func main() {
 	//Build the runtime map to use
 	intRuntimeCount := 0
 	arrRuntimeWorkloads := make(map[string]types.WorkloadStruct)
-	for index, item := range jsonScanningResponse.Data {
+	arrSortedRuntimeWorkloads := []string{}
+
+	for _, item := range jsonScanningResponse.Data {
 		if item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["asset.type"].(string) == "workload" {
 			entry := types.WorkloadStruct{
 				ClusterName:   item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.cluster.name"].(string),
@@ -154,22 +175,35 @@ func main() {
 			}
 			key := fmt.Sprintf("%s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName)
 			arrRuntimeWorkloads[key] = entry
-			dlog.Printf("main:: Index %d arrRuntimeWorkloads Workload: %s", index, key)
-			intRuntimeCount += 1
+			arrSortedRuntimeWorkloads = append(arrSortedRuntimeWorkloads, key)
+
+			//dlog.Printf("main:: Index %d arrRuntimeWorkloads Workload: %s", index, key)
 		}
 	}
+	sort.Strings(arrSortedRuntimeWorkloads)
+	for index, item := range arrSortedRuntimeWorkloads {
+		dlog.Printf("main:: Index %d arrRuntimeWorkloads Workload: %s", index, item)
+		intRuntimeCount += 1
+	}
+
 	dlog.Println("main:: Finished builing lookup arrary 'arrRuntimeWorkloads'")
 	dlog.Println("\nmain:: Being logging results...")
 
 	fmt.Println("Workloads found that are missing from VM Runtime Scanning:")
 	fmt.Println("Cluster / Namespace / Workload")
 	count := 0
+
+	var arrSortedResult []string
+
 	for key := range arrK8sLiveWorkloads {
 		if _, exists := arrRuntimeWorkloads[key]; !exists {
-			// The workload from arrK8sLiveWorkloads is not in arrRuntimeWorkloads
-			fmt.Println(key)
+			arrSortedResult = append(arrSortedResult, key)
 			count += 1
 		}
+	}
+	sort.Strings(arrSortedResult)
+	for _, item := range arrSortedResult {
+		fmt.Println(item)
 	}
 	fmt.Printf("\nTotal workloads detected from Kubernetes Live: %d", intK8sCount)
 	fmt.Printf("\nTotal workloads detected in VM Runtime Scanning: %d", intRuntimeCount)

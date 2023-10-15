@@ -15,7 +15,9 @@ var K8sLiveJson string = `
             "metrics": {
                 "k0": "kubernetes.workload.name",
                 "k1": "kubernetes.namespace.name",
-                "k2": "kubernetes.cluster.name"
+                "k2": "kubernetes.cluster.name",
+                "k3": "kubernetes.job.name",
+                "k4": "kubernetes.cron.job.name"
             },
             "group": {
                 "aggregations": {},
@@ -29,6 +31,12 @@ var K8sLiveJson string = `
                     },
                     {
                         "metric": "k2"
+                    },
+                    {
+                        "metric": "k3"
+                    },
+                    {
+                        "metric": "k4"
                     }
                 ],
                 "configuration": {

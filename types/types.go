@@ -1,11 +1,5 @@
 package types
 
-type Workload struct {
-	Workload  string
-	Namespace string
-	Cluster   string
-}
-
 type K8sLiveRequestWrapper struct {
 	Requests []K8sLiveRequest `json:"requests"`
 }
@@ -45,6 +39,8 @@ type WorkloadStruct struct {
 	ClusterName   string
 	NamespaceName string
 	WorkloadName  string
+	JobName       string
+	CronJobName   string
 }
 
 type RunningResponse struct {
