@@ -34,18 +34,25 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of sysdig-audit-vm-runtime:\n")
 		fmt.Fprintf(os.Stderr, "  SECURE_API_TOKEN=xxx sysdig-audit-vm-runtime [OPTIONS]\n\nOptions:\n")
-		fmt.Fprintf(os.Stderr, "  -h/--help\tDisplay Help\n")
-		fmt.Fprintf(os.Stderr, "  -a/--api\tSpecify Sysdig API URL\n")
-		fmt.Fprintf(os.Stderr, "  -c/--cluster\tCluster to process (Default is all)\n")
+		fmt.Fprintf(os.Stderr, "  --help\tDisplay Help\n")
+		fmt.Fprintf(os.Stderr, "  --api\tSpecify Sysdig API URL\n")
+		fmt.Fprintf(os.Stderr, "  --cluster\tCluster to process (Default is all)\n")
+		fmt.Fprintf(os.Stderr, "  --debug\tCluster to process (Default is all)\n")
 		fmt.Fprintf(os.Stderr, "\n")
 	}
 	strAPIKey := getOSEnvString("SECURE_API_TOKEN", false)
 	if strAPIKey == "" {
 		dlog.Fatalf("main:: Please set SECURE_API_TOKEN variable.  Exiting...")
 	}
+
 	flag.BoolVar(&DebugLog.Debug, "debug", false, "Enable debug logging")
 	clusterName := flag.String("cluster", "", "Name of the Kubernetes cluster")
+	ApiURL := flag.String("api", "", "Specify Sysdig API URL")
 	flag.Parse()
+
+	if *ApiURL == "" {
+		dlog.Fatalf("main:: Please specify a sysdig --api URL")
+	}
 
 	fmt.Println("Sysdig-Audit-VM-Runtime 0.1")
 	fmt.Print("\n\n")
@@ -80,7 +87,7 @@ func main() {
 
 	configHTTPK8sLive := sysdighttp.DefaultSysdigRequestConfig()
 	configHTTPK8sLive.Method = "POST"
-	configHTTPK8sLive.URL = "https://app.au1.sysdig.com/api/data/batch?emptyValuesAsNull=true&dynamicSampling=true"
+	configHTTPK8sLive.URL = *ApiURL + "/api/data/batch?emptyValuesAsNull=true&dynamicSampling=true"
 	configHTTPK8sLive.Headers = map[string]string{
 		"Authorization":     "bearer " + strAPIKey,
 		"emptyValuesAsNull": "true",
@@ -115,7 +122,7 @@ func main() {
 
 	// Now get the scanning data we need
 	configScanning := sysdighttp.DefaultSysdigRequestConfig()
-	configScanning.URL = "https://app.au1.sysdig.com/api/scanning/runtime/v2/workflows/results"
+	configScanning.URL = *ApiURL + "/api/scanning/runtime/v2/workflows/results"
 	configScanning.Headers = map[string]string{
 		"Authorization": "bearer " + strAPIKey,
 	}
