@@ -38,7 +38,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -a/--api\tSpecify Sysdig API URL\n")
 		fmt.Fprintf(os.Stderr, "  -c/--cluster\tCluster to process (Default is all)\n")
 		fmt.Fprintf(os.Stderr, "\n")
-		flag.PrintDefaults()
 	}
 	strAPIKey := getOSEnvString("SECURE_API_TOKEN", false)
 	if strAPIKey == "" {
@@ -74,7 +73,7 @@ func main() {
 	dlog.Printf("main:: To epoch: %d", dtToMicro)
 
 	request.Requests[0].Time["from"] = dtFromMicro
-	if clusterName != nil {
+	if *clusterName != "" {
 		// set the cluster name explicitly
 		request.Requests[0].Scope = fmt.Sprintf("kubernetes.cluster.name = \"%s\"", *clusterName)
 	}
