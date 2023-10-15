@@ -15,11 +15,6 @@ Options:
   -h/--help	Display Help
   -a/--api	Specify Sysdig API URL
   -c/--cluster	Cluster to process (Default is all)
-
-  -cluster string
-    	Name of the Kubernetes cluster
-  -debug
-    	Enable debug logging
 ```
 
 ## Example Output ##
