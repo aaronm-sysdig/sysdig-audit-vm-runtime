@@ -118,7 +118,6 @@ func main() {
 	}
 
 	//build the map of K8s live data to use later
-	intK8sCount := 0
 	arrK8sLiveWorkloads := make(map[string]types.WorkloadStruct)
 	arrsortedK8sLiveWorkloads := []string{}
 
@@ -128,22 +127,25 @@ func main() {
 			NamespaceName: item["k1"],
 			WorkloadName:  item["k0"],
 			JobName:       item["k3"],
-			CronJobName:   item["k4"],
+			WorkloadType:  item["k4"],
 		}
-		if (entry.JobName != "" || entry.CronJobName != "") && boolIgnoreJobs {
-			dlog.Printf("Ignoring 'Job/Cronjob' Workload %s (JobName:%s, CronJobName:%s)", entry.WorkloadName, entry.JobName, entry.CronJobName)
+		if entry.JobName != "" && boolIgnoreJobs {
+			dlog.Printf("Ignoring 'Job/Cronjob' Workload %s (JobName:%s)", entry.WorkloadName, entry.JobName)
 		} else {
-			key := fmt.Sprintf("%s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName)
+			key := fmt.Sprintf("%s / %s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName, entry.WorkloadType)
 			arrK8sLiveWorkloads[key] = entry
-			arrsortedK8sLiveWorkloads = append(arrsortedK8sLiveWorkloads, key)
-			//dlog.Printf("Index: %d, arrK8sLiveWorkloads Workload: %s / %s / %s", index, item["k2"], item["k1"], item["k0"])
 		}
 	}
+
+	for key := range arrK8sLiveWorkloads {
+		arrsortedK8sLiveWorkloads = append(arrsortedK8sLiveWorkloads, key)
+	}
+
 	sort.Strings(arrsortedK8sLiveWorkloads)
 	for index, item := range arrsortedK8sLiveWorkloads {
 		dlog.Printf("Index: %d, arrK8sLiveWorkloads Workload: %s", index, item)
-		intK8sCount += 1
 	}
+	intK8sCount := len(arrsortedK8sLiveWorkloads)
 
 	// Now get the scanning data we need
 	configScanning := sysdighttp.DefaultSysdigRequestConfig()
@@ -170,7 +172,6 @@ func main() {
 	}
 
 	//Build the runtime map to use
-	intRuntimeCount := 0
 	arrRuntimeWorkloads := make(map[string]types.WorkloadStruct)
 	arrSortedRuntimeWorkloads := []string{}
 
@@ -180,25 +181,28 @@ func main() {
 				ClusterName:   item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.cluster.name"].(string),
 				NamespaceName: item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.namespace.name"].(string),
 				WorkloadName:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.name"].(string),
+				WorkloadType:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.type"].(string),
 			}
-			key := fmt.Sprintf("%s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName)
+			key := fmt.Sprintf("%s / %s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName, entry.WorkloadType)
 			arrRuntimeWorkloads[key] = entry
-			arrSortedRuntimeWorkloads = append(arrSortedRuntimeWorkloads, key)
-
-			//dlog.Printf("main:: Index %d arrRuntimeWorkloads Workload: %s", index, key)
 		}
 	}
+
+	for key := range arrRuntimeWorkloads {
+		arrSortedRuntimeWorkloads = append(arrSortedRuntimeWorkloads, key)
+	}
+
 	sort.Strings(arrSortedRuntimeWorkloads)
 	for index, item := range arrSortedRuntimeWorkloads {
 		dlog.Printf("main:: Index %d arrRuntimeWorkloads Workload: %s", index, item)
-		intRuntimeCount += 1
 	}
+	intRuntimeCount := len(arrRuntimeWorkloads)
 
 	dlog.Println("main:: Finished builing lookup arrary 'arrRuntimeWorkloads'")
 	dlog.Println("\nmain:: Being logging results...")
 
 	fmt.Println("Workloads found that are missing from VM Runtime Scanning:")
-	fmt.Println("Cluster / Namespace / Workload")
+	fmt.Println("Cluster / Namespace / Workload Name / Workload Type")
 	count := 0
 
 	var arrSortedResult []string

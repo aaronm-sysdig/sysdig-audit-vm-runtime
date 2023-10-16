@@ -17,7 +17,7 @@ var K8sLiveJson string = `
                 "k1": "kubernetes.namespace.name",
                 "k2": "kubernetes.cluster.name",
                 "k3": "kubernetes.job.name",
-                "k4": "kubernetes.cron.job.name"
+                "k4": "kubernetes.workload.type"
             },
             "group": {
                 "aggregations": {},

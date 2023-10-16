@@ -40,7 +40,7 @@ type WorkloadStruct struct {
 	NamespaceName string
 	WorkloadName  string
 	JobName       string
-	CronJobName   string
+	WorkloadType  string
 }
 
 type RunningResponse struct {
