@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	DebugLog "sysdig-audit-vm-runtime/debuglog"
 	"sysdig-audit-vm-runtime/payloads"
 	"sysdig-audit-vm-runtime/sysdighttp"
@@ -57,6 +58,9 @@ func main() {
 	clusterName := flag.String("cluster", "", "Name of the Kubernetes cluster")
 	ApiURL := flag.String("api", "", "Specify Sysdig API URL")
 	flag.Parse()
+	if strings.HasSuffix(*ApiURL, "/") {
+		*ApiURL = strings.TrimSuffix(*ApiURL, "/")
+	}
 
 	if *ApiURL == "" {
 		dlog.Fatalf("main:: Please specify a sysdig --api URL")
