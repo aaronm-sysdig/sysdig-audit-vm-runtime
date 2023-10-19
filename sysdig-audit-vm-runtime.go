@@ -246,8 +246,9 @@ func main() {
 	for _, item := range arrSortedResult {
 		fmt.Println(item)
 	}
-	fmt.Printf("\nTotal workloads detected from Kubernetes Live: %d", intK8sCount)
-	fmt.Printf("\nTotal workloads detected in VM Runtime Scanning: %d", intRuntimeCount)
-	fmt.Printf("\nTotal workloads missing in VM Runtime Scanning: %d\n", count)
+	fmt.Printf("\n%-48s %d", "Total workloads detected from Kubernetes Live:", intK8sCount)
+	fmt.Printf("\n%-48s %d", "Total workloads detected in VM Runtime Scanning:", intRuntimeCount)
+	fmt.Printf("\n%-48s %d\n", "Total workloads missing in VM Runtime Scanning:", count)
+
 	dlog.Println("Finished...")
 }
