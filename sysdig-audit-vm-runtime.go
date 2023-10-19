@@ -32,7 +32,7 @@ func getOSEnvString(environmentVariable string, optional bool) string {
 }
 
 func main() {
-	fmt.Println("Sysdig-Audit-VM-Runtime 0.2")
+	fmt.Println("Sysdig-Audit-VM-Runtime 0.3")
 	fmt.Print("\n")
 
 	// Set out custom -h/--help usage
@@ -100,6 +100,9 @@ func main() {
 		// set the cluster name explicitly
 		request.Requests[0].Scope = fmt.Sprintf("kubernetes.cluster.name = \"%s\"", *clusterName)
 	}
+	dlog.Printf("main:: Processing Kubernetes Live data, please wait.")
+	dlog.Printf("main:: While you wait.")
+	dlog.Printf("main:: What do you call a mislabeled orange juice container?")
 
 	configHTTPK8sLive := sysdighttp.DefaultSysdigRequestConfig()
 	configHTTPK8sLive.Method = "POST"
@@ -158,7 +161,8 @@ func main() {
 		"Authorization": "bearer " + strAPIKey,
 	}
 	configScanning.Params = map[string]interface{}{}
-	configScanning.Params["limit"] = 9999
+	// Max is 1000, so lets return 1000 then iterate through the pages until we get no more cursors
+	configScanning.Params["limit"] = 1000
 	if *clusterName != "" {
 		configScanning.Params["filter"] = fmt.Sprintf("kubernetes.cluster.name = \"%s\"", *clusterName)
 		dlog.Printf("main:: filtering on kubernetes.cluster.name = \"%s\"", *clusterName)
@@ -166,29 +170,50 @@ func main() {
 
 	objScanningResponse, err := sysdighttp.SysdigRequest(configScanning)
 	if err != nil {
-		dlog.Fatalf("main:: Could not query K8Live API.  Exiting %v...", err)
+		dlog.Fatalf("main:: Could not query Scanning API.  Exiting %v...", err)
 
 	}
+
 	var jsonScanningResponse types.ScanningResponse
+
 	err = sysdighttp.ResponseBodyToJson(objScanningResponse, &jsonScanningResponse)
 	if err != nil {
 		dlog.Println("main:: failed to convert body to JSON: %w", err)
 	}
-
+	dlog.Printf("main:: Pulp Fiction")
+	dlog.Printf("main:: *cue laughter... or eye rolling*")
 	//Build the runtime map to use
 	arrRuntimeWorkloads := make(map[string]types.WorkloadStruct)
 	arrSortedRuntimeWorkloads := []string{}
 
-	for _, item := range jsonScanningResponse.Data {
-		if item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["asset.type"].(string) == "workload" {
-			entry := types.WorkloadStruct{
-				ClusterName:   item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.cluster.name"].(string),
-				NamespaceName: item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.namespace.name"].(string),
-				WorkloadName:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.name"].(string),
-				WorkloadType:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.type"].(string),
+	for {
+		dlog.Printf("main:: Processing Runtime Recordcount: %d/%d", int(jsonScanningResponse.Page["returned"].(float64)), int(jsonScanningResponse.Page["matched"].(float64)))
+		for _, item := range jsonScanningResponse.Data {
+			if item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["asset.type"].(string) == "workload" {
+				entry := types.WorkloadStruct{
+					ClusterName:   item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.cluster.name"].(string),
+					NamespaceName: item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.namespace.name"].(string),
+					WorkloadName:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.name"].(string),
+					WorkloadType:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.type"].(string),
+				}
+				key := fmt.Sprintf("%s / %s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName, entry.WorkloadType)
+				arrRuntimeWorkloads[key] = entry
 			}
-			key := fmt.Sprintf("%s / %s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName, entry.WorkloadType)
-			arrRuntimeWorkloads[key] = entry
+		}
+		// Now check if we have another page to process.. if so.. then do
+		if jsonScanningResponse.Page["next"] != nil {
+			dlog.Printf("main:: Found cursor, querying next set of data.  Cursor = %s", jsonScanningResponse.Page["next"])
+			configScanning.Params["cursor"] = jsonScanningResponse.Page["next"]
+			objScanningResponse, err = sysdighttp.SysdigRequest(configScanning)
+			if err != nil {
+				dlog.Fatalf("main:: Could not query Scanning API.  Exiting %v...", err)
+			}
+			err = sysdighttp.ResponseBodyToJson(objScanningResponse, &jsonScanningResponse)
+			if err != nil {
+				dlog.Println("main:: failed to convert body to JSON: %w", err)
+			}
+		} else {
+			break
 		}
 	}
 
