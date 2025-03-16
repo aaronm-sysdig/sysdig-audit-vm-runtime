@@ -31,6 +31,35 @@ func getOSEnvString(environmentVariable string, optional bool) string {
 	return env
 }
 
+func getNestedString(data map[string]interface{}, path ...string) string {
+	var current interface{} = data
+	for i, key := range path {
+		m, ok := current.(map[string]interface{})
+		if !ok {
+			// current isn't a map at some level; return empty
+			return ""
+		}
+		val, exists := m[key]
+		if !exists {
+			// key not present
+			return ""
+		}
+
+		if i == len(path)-1 {
+			// Last key in the path, we expect a string
+			strVal, ok := val.(string)
+			if !ok {
+				return ""
+			}
+			return strVal
+		} else {
+			// Move deeper
+			current = val
+		}
+	}
+	return ""
+}
+
 func main() {
 	fmt.Println("Sysdig-Audit-VM-Runtime 0.3")
 	fmt.Print("\n")
@@ -101,8 +130,6 @@ func main() {
 		request.Requests[0].Scope = fmt.Sprintf("kubernetes.cluster.name = \"%s\"", *clusterName)
 	}
 	dlog.Printf("main:: Processing Kubernetes Live data, please wait.")
-	dlog.Printf("main:: While you wait.")
-	dlog.Printf("main:: What do you call a mislabeled orange juice container?")
 
 	configHTTPK8sLive := sysdighttp.DefaultSysdigRequestConfig()
 	configHTTPK8sLive.Method = "POST"
@@ -113,6 +140,7 @@ func main() {
 		"dynamicSampling":   "true",
 	}
 	configHTTPK8sLive.JSON = request
+
 	objResponse, err := sysdighttp.SysdigRequest(configHTTPK8sLive)
 	if err != nil {
 		dlog.Fatalf("main:: Could not query K8Live API.  Exiting %v...", err)
@@ -133,8 +161,8 @@ func main() {
 			ClusterName:   item["k2"],
 			NamespaceName: item["k1"],
 			WorkloadName:  item["k0"],
-			JobName:       item["k3"],
 			WorkloadType:  item["k4"],
+			JobName:       item["k3"],
 		}
 		if entry.JobName != "" && boolIgnoreJobs {
 			dlog.Printf("Ignoring 'Job/Cronjob' Workload %s (JobName:%s)", entry.WorkloadName, entry.JobName)
@@ -180,8 +208,6 @@ func main() {
 	if err != nil {
 		dlog.Println("main:: failed to convert body to JSON: %w", err)
 	}
-	dlog.Printf("main:: Pulp Fiction")
-	dlog.Printf("main:: *cue laughter... or eye rolling*")
 	//Build the runtime map to use
 	arrRuntimeWorkloads := make(map[string]types.WorkloadStruct)
 	arrSortedRuntimeWorkloads := []string{}
@@ -191,10 +217,11 @@ func main() {
 		for _, item := range jsonScanningResponse.Data {
 			if item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["asset.type"].(string) == "workload" {
 				entry := types.WorkloadStruct{
-					ClusterName:   item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.cluster.name"].(string),
-					NamespaceName: item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.namespace.name"].(string),
-					WorkloadName:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.name"].(string),
-					WorkloadType:  item["recordDetails"].(map[string]interface{})["labels"].(map[string]interface{})["kubernetes.workload.type"].(string),
+					ClusterName:   getNestedString(item, "recordDetails", "labels", "kubernetes.cluster.name"),
+					NamespaceName: getNestedString(item, "recordDetails", "labels", "kubernetes.namespace.name"),
+					WorkloadName:  getNestedString(item, "recordDetails", "labels", "kubernetes.workload.name"),
+					WorkloadType:  getNestedString(item, "recordDetails", "labels", "kubernetes.workload.type"),
+					JobName:       getNestedString(item, "recordDetails", "labels", "kubernetes.job.name"),
 				}
 				key := fmt.Sprintf("%s / %s / %s / %s", entry.ClusterName, entry.NamespaceName, entry.WorkloadName, entry.WorkloadType)
 				arrRuntimeWorkloads[key] = entry
@@ -228,7 +255,7 @@ func main() {
 	intRuntimeCount := len(arrRuntimeWorkloads)
 
 	dlog.Println("main:: Finished builing lookup arrary 'arrRuntimeWorkloads'")
-	dlog.Println("\nmain:: Being logging results...")
+	dlog.Println("\nmain:: Begin logging results...")
 
 	fmt.Println("Workloads found that are missing from VM Runtime Scanning:")
 	fmt.Println("Cluster / Namespace / Workload Name / Workload Type")
